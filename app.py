@@ -13,6 +13,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+# Skills Database
 SKILLS = [
     "python",
     "sql",
@@ -40,7 +41,7 @@ SKILLS = [
     "scikit-learn"
 ]
 
-# Global variables for PDF report
+# Global variable for PDF report
 latest_report = {}
 
 
@@ -81,7 +82,10 @@ def upload():
     job_description = request.form["job_description"]
 
     # TF-IDF Similarity
-    documents = [resume_text, job_description]
+    documents = [
+        resume_text,
+        job_description
+    ]
 
     vectorizer = TfidfVectorizer()
 
@@ -97,7 +101,7 @@ def upload():
         2
     )
 
-    # Skill Analysis
+    # Skill Matching
     resume_lower = resume_text.lower()
     jd_lower = job_description.lower()
 
@@ -113,49 +117,83 @@ def upload():
             else:
                 missing_skills.append(skill)
 
-    # Suggestions
+    # Recommendations
     suggestions = []
 
     for skill in missing_skills:
-
         suggestions.append(
             f"Consider learning {skill} and adding related projects."
         )
 
-    # Skills Percentage
+    # Skills Match Percentage
     total_skills = len(matched_skills) + len(missing_skills)
 
     if total_skills > 0:
-
         skills_match_percentage = round(
             (len(matched_skills) / total_skills) * 100,
             2
         )
-
     else:
-
         skills_match_percentage = 0
 
-    # ATS Score
-    ats_score = (
-        (len(matched_skills) * 10)
-        - (len(missing_skills) * 3)
-        + 40
+    # SMART ATS SCORE
+
+    skills_points = min(
+        len(matched_skills) * 5,
+        30
     )
 
-    if ats_score > 100:
-        ats_score = 100
+    project_points = (
+        20 if "project" in resume_lower else 0
+    )
 
-    if ats_score < 0:
-        ats_score = 0
+    certificate_points = (
+        15 if (
+            "certification" in resume_lower
+            or "certificate" in resume_lower
+        ) else 0
+    )
 
-    # Resume Category
+    github_points = (
+        10 if "github" in resume_lower else 0
+    )
+
+    linkedin_points = (
+        10 if "linkedin" in resume_lower else 0
+    )
+
+    experience_points = (
+        10 if "experience" in resume_lower else 0
+    )
+
+    education_points = (
+        5 if (
+            "education" in resume_lower
+            or "bachelor" in resume_lower
+            or "b.tech" in resume_lower
+        ) else 0
+    )
+
+    ats_score = (
+        skills_points
+        + project_points
+        + certificate_points
+        + github_points
+        + linkedin_points
+        + experience_points
+        + education_points
+    )
+
+    ats_score = min(ats_score, 100)
+
+    # Resume Category Detection
+
     resume_category = "General Profile"
 
     if (
         "machine learning" in resume_lower
-        or "artificial intelligence" in resume_lower
         or "tensorflow" in resume_lower
+        or "artificial intelligence" in resume_lower
     ):
         resume_category = "AI / ML Engineer"
 
@@ -166,17 +204,29 @@ def upload():
     ):
         resume_category = "Data Analyst"
 
-    elif "python" in resume_lower:
+    elif (
+        "flask" in resume_lower
+        or "python" in resume_lower
+    ):
         resume_category = "Python Developer"
 
-    # Store report data
+    # Store data for PDF report
+
     latest_report = {
         "ats_score": ats_score,
         "match_score": match_score,
         "resume_category": resume_category,
         "matched_skills": matched_skills,
         "missing_skills": missing_skills,
-        "suggestions": suggestions
+        "suggestions": suggestions,
+
+        "skills_points": skills_points,
+        "project_points": project_points,
+        "certificate_points": certificate_points,
+        "github_points": github_points,
+        "linkedin_points": linkedin_points,
+        "experience_points": experience_points,
+        "education_points": education_points
     }
 
     return render_template(
@@ -188,7 +238,18 @@ def upload():
         suggestions=suggestions,
         skills_match_percentage=skills_match_percentage,
         ats_score=ats_score,
-        resume_category=resume_category
+        resume_category=resume_category,
+
+        matched_count=len(matched_skills),
+        missing_count=len(missing_skills),
+
+        skills_points=skills_points,
+        project_points=project_points,
+        certificate_points=certificate_points,
+        github_points=github_points,
+        linkedin_points=linkedin_points,
+        experience_points=experience_points,
+        education_points=education_points
     )
 
 
@@ -227,37 +288,32 @@ def download_report():
     y = 670
 
     c.drawString(50, y, "Matched Skills:")
-
     y -= 20
 
     for skill in latest_report.get("matched_skills", []):
-
         c.drawString(70, y, f"- {skill}")
-
         y -= 20
 
     y -= 10
 
     c.drawString(50, y, "Missing Skills:")
-
     y -= 20
 
     for skill in latest_report.get("missing_skills", []):
-
         c.drawString(70, y, f"- {skill}")
-
         y -= 20
 
     y -= 10
 
     c.drawString(50, y, "Recommendations:")
-
     y -= 20
 
     for suggestion in latest_report.get("suggestions", []):
-
-        c.drawString(70, y, f"- {suggestion[:70]}")
-
+        c.drawString(
+            70,
+            y,
+            f"- {suggestion[:70]}"
+        )
         y -= 20
 
     c.save()
